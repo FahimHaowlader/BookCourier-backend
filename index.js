@@ -48,6 +48,35 @@ async function run() {
       res.send(result)
     })
 
+//     app.get('/books/:sort', async (req, res) => {
+//   try {
+//     const sortParam = req.params.sort;
+//     let sortCriteria = {};
+
+//     if (sortParam === 'asc') {
+//       sortCriteria = { price: 1 }; // Ascending order
+//     } else if (sortParam === 'desc') {
+//       sortCriteria = { price: -1 }; // Descending order
+//     } else {
+//       return res.status(400).send({ error: "Invalid sort parameter" });
+//     }
+
+//     const result = await BooksCollection.find().sort(sortCriteria).toArray();
+//     res.send(result);
+//   }
+//   catch (error) {
+//     console.error("Error fetching sorted books:", error);
+//     res.status(500).send({ error: "Failed to fetch sorted books" });
+//   }
+// });
+
+app.get('/my-books/:email',async(req,res)=>{
+  const email = req.params.email;
+  const query = {sellerEmail: email};
+  const result = await BooksCollection.find(query).toArray()
+  res.send(result)
+})
+
    app.get('/book/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -83,6 +112,10 @@ app.get('/orders',async(req,res)=>{
   const result = await OrdersCollection.find(query).toArray()
   res.send(result)
 })
+app.get('/all-orders',async(req,res)=>{
+  const result = await OrdersCollection.find().toArray()
+  res.send(result)
+})
 
 app.post('/orders',async(req,res)=>{
   const order = req.body;
@@ -115,7 +148,7 @@ app.get('/wishlists',async(req,res)=>{
     res.send(result)
   })
 
-  
+
 app.delete('/wishlists/:id',async(req,res)=>{
   const id = req.params.id;
   const query = {_id: new ObjectId(id)};
