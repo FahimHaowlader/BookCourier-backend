@@ -5,6 +5,9 @@ import dotenv from 'dotenv'
 import { MongoClient, ServerApiVersion,ObjectId } from 'mongodb';
 const port = process.env.PORT || 3000
 dotenv.config()
+import cookieParser from 'cookie-parser'
+app.use(cookieParser());
+
 
 // app.use(cors({
 //   origin: ['http://localhost:3000',
@@ -15,8 +18,86 @@ dotenv.config()
 //   ],
 //   credentials: true
 // }))
+
 app.use(cors())
 app.use(express.json()) 
+
+
+const verifyUser = (req, res, next) => {
+  const token = req.cookies?.accessToken;
+
+  if (!token) {
+    return res.status(401).send({ message: 'Unauthorized access' });
+  }
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: 'Forbidden access' });
+    }
+
+    req.user = decoded; // { email, role }
+    next();
+  });
+};
+
+const verifyRole = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).send({ message: 'Access denied' });
+    }
+    next();
+  };
+};
+
+
+
+app.get('/token', async (req, res) => {
+  const user = req.body;
+const token = jwt.sign(
+  { email: user.email, role: user.role },
+  process.env.ACCESS_TOKEN_SECRET,
+  { expiresIn: '7d' }
+);
+
+res.cookie('accessToken', token, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+});
+
+res.send({ success: true });
+
+});
+
+app.get('/logout', (req, res) => {
+  res.clearCookie('accessToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  res.send({ success: true });
+});
+
+
+
+const veriflyUser = (req,res,next)=>{
+  // console.log('inside verify user',req.headers.authorization);
+  const authHeader = req.headers.authorization;
+  if(!authHeader){
+    return res.status(401).send({message:'unauthorized access'})
+  }
+  const token = authHeader.split(' ')[1];
+  console.log('token inside verify user',token);
+  // jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,decoded)=>{
+  //   if(err){
+  //     return res.status(403).send({message:'forbidden access'})
+  //   }
+  //   console.log('decoded',decoded);
+  //   req.decoded = decoded;
+  //   next();
+  // })
+  next();
+}
 
 app.get("/",async(req,res)=>{
     res.send("Hello World")
@@ -42,6 +123,32 @@ async function run() {
     const BooksCollection = client.db('BookCourier').collection('Books');
     const OrdersCollection = client.db('BookCourier').collection('Orders');
     const WishlistsCollection = client.db('BookCourier').collection('Wishlists');
+    const UsersCollection = client.db('BookCourier').collection('Users');
+
+    app.get('/users',async(req,res)=>{
+      const result = await UsersCollection.find().toArray()
+      res.send(result)
+    })
+
+    app.post('/users',async(req,res)=>{
+      const user = req.body;
+      console.log(user);
+        const result = await UsersCollection.insertOne(user);
+        res.send(result)
+    })
+
+    app.patch('/users/:id',async(req,res)=>{
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)};
+      const updatedUser = req.body;
+      const updateDoc = {
+        $set: {
+          role: updatedUser.role
+        },
+      };
+      const result = await UsersCollection.updateOne(filter,updateDoc);
+      res.send(result)
+    })
 
     app.get('/books',async(req,res)=>{
       const result = await BooksCollection.find().toArray()
@@ -88,6 +195,13 @@ app.get('/my-books/:email',async(req,res)=>{
     console.error("Error fetching book:", error);
     res.status(500).send({ error: "Failed to fetch book" });
   }
+})
+
+app.delete('/books/:id',async(req,res)=>{
+  const id = req.params.id;
+  const query = {_id: new ObjectId(id)};
+  const result = await BooksCollection.deleteOne(query);
+  res.send(result)
 })
 
 app.post('/books',async(req,res)=>{
