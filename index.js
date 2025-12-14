@@ -6,15 +6,16 @@ import { MongoClient, ServerApiVersion,ObjectId } from 'mongodb';
 const port = process.env.PORT || 3000
 dotenv.config()
 
-app.use(cors({
-  origin: ['http://localhost:3000',
-   'http://localhost:5173',
-  'http://localhost:5173',
-  'https://homenests.netlify.app',
-  'https://velvety-moxie-01f024.netlify.app'
-  ],
-  credentials: true
-}))
+// app.use(cors({
+//   origin: ['http://localhost:3000',
+//    'http://localhost:5173',
+//   'http://localhost:5173',
+//   'https://homenests.netlify.app',
+//   'https://velvety-moxie-01f024.netlify.app'
+//   ],
+//   credentials: true
+// }))
+app.use(cors())
 app.use(express.json()) 
 
 app.get("/",async(req,res)=>{
@@ -38,8 +39,26 @@ async function run() {
     // Send a ping to confirm a successful connection
 
 
-    const PropertyCollection = client.db('BookCourier').collection('Books');
+    const BooksCollection = client.db('BookCourier').collection('Books');
     // const ReviewCollection = client.db('BookCourier').collection('Reviews');
+
+    app.get('/books',async(req,res)=>{
+      const result = await BooksCollection.find().toArray()
+      res.send(result)
+    })
+
+   app.get('/book/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const book = await BooksCollection.findOne(query);
+    res.send(book); 
+  }
+  catch (error) {
+    console.error("Error fetching book:", error);
+    res.status(500).send({ error: "Failed to fetch book" });
+  }
+})
 
  } catch (error) {
     console.error("Error fetching property:", error);
