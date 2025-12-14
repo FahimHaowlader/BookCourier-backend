@@ -40,7 +40,7 @@ async function run() {
 
 
     const BooksCollection = client.db('BookCourier').collection('Books');
-    // const ReviewCollection = client.db('BookCourier').collection('Reviews');
+    const OrdersCollection = client.db('BookCourier').collection('Orders');
 
     app.get('/books',async(req,res)=>{
       const result = await BooksCollection.find().toArray()
@@ -60,11 +60,42 @@ async function run() {
   }
 })
 
+app.post('/books',async(req,res)=>{
+  const book = req.body;
+  console.log(book);
+  const result = await BooksCollection.insertOne(book);
+  res.send(result)
+})
+
  } catch (error) {
     console.error("Error fetching property:", error);
     res.status(500).send({ error: "Failed to fetch property" });
   }
 }
+
+app.get('/orders',async(req,res)=>{
+  const email = req.query.email;
+  let query = {};
+  if(email){
+    query={email:email}
+  }
+  const result = await OrdersCollection.find(query).toArray()
+  res.send(result)
+})
+
+app.post('/orders',async(req,res)=>{
+  const order = req.body;
+  console.log(order);
+  const result = await OrdersCollection.insertOne(order);
+  res.send(result)
+})
+
+app.delete('/orders/:id',async(req,res)=>{
+  const id = req.params.id;
+  const query = {_id: new ObjectId(id)};
+  const result = await OrdersCollection.deleteOne(query);  
+})
+
 
 run().catch(console.dir);
 
