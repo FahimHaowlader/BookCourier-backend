@@ -41,6 +41,7 @@ async function run() {
 
     const BooksCollection = client.db('BookCourier').collection('Books');
     const OrdersCollection = client.db('BookCourier').collection('Orders');
+    const WishlistsCollection = client.db('BookCourier').collection('Wishlists');
 
     app.get('/books',async(req,res)=>{
       const result = await BooksCollection.find().toArray()
@@ -94,7 +95,34 @@ app.delete('/orders/:id',async(req,res)=>{
   const id = req.params.id;
   const query = {_id: new ObjectId(id)};
   const result = await OrdersCollection.deleteOne(query);  
+    res.send(result)
 })
+
+app.get('/wishlists',async(req,res)=>{
+    const email =  req.query.email;
+    let query = {};
+    if(email){
+      query={email:email}
+    }
+    const result = await WishlistsCollection.find(query).toArray()
+    res.send(result)
+  })
+  
+  app.post('/wishlists',async(req,res)=>{
+    const wishlist = req.body;
+    console.log(wishlist);
+    const result = await WishlistsCollection.insertOne(wishlist);
+    res.send(result)
+  })
+
+  
+app.delete('/wishlists/:id',async(req,res)=>{
+  const id = req.params.id;
+  const query = {_id: new ObjectId(id)};
+  const result = await WishlistsCollection.deleteOne(query);
+    res.send(result)
+})  
+
 
 
 run().catch(console.dir);
