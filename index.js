@@ -1,11 +1,12 @@
 import express from 'express'
 import cors from 'cors'
-const app = express()
+import cookieParser from 'cookie-parser'
 import dotenv from 'dotenv'
+dotenv.config()
+import jwt from 'jsonwebtoken'
 import { MongoClient, ServerApiVersion,ObjectId } from 'mongodb';
 const port = process.env.PORT || 3000
-dotenv.config()
-import cookieParser from 'cookie-parser'
+const app = express()
 app.use(cookieParser());
 
 
@@ -51,7 +52,7 @@ const verifyRole = (...roles) => {
 
 
 
-app.get('/token', async (req, res) => {
+app.post('/jwt', async (req, res) => {
   const user = req.body;
 const token = jwt.sign(
   { email: user.email, role: user.role },
@@ -61,8 +62,8 @@ const token = jwt.sign(
 
 res.cookie('accessToken', token, {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  secure: true,
+  // sameSite: 'strict',
 });
 
 res.send({ success: true });
@@ -78,26 +79,6 @@ app.get('/logout', (req, res) => {
   res.send({ success: true });
 });
 
-
-
-const veriflyUser = (req,res,next)=>{
-  // console.log('inside verify user',req.headers.authorization);
-  const authHeader = req.headers.authorization;
-  if(!authHeader){
-    return res.status(401).send({message:'unauthorized access'})
-  }
-  const token = authHeader.split(' ')[1];
-  console.log('token inside verify user',token);
-  // jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,decoded)=>{
-  //   if(err){
-  //     return res.status(403).send({message:'forbidden access'})
-  //   }
-  //   console.log('decoded',decoded);
-  //   req.decoded = decoded;
-  //   next();
-  // })
-  next();
-}
 
 app.get("/",async(req,res)=>{
     res.send("Hello World")
@@ -125,19 +106,47 @@ async function run() {
     const WishlistsCollection = client.db('BookCourier').collection('Wishlists');
     const UsersCollection = client.db('BookCourier').collection('Users');
 
-    app.get('/users',async(req,res)=>{
+    app.get('/all-users',verifyUser,verifyRole('admin'),async(req,res)=>{
       const result = await UsersCollection.find().toArray()
       res.send(result)
     })
 
+    app.get('/users/:email',async(req,res)=>{
+      const email = req.params.email;
+      const query = {email: email};
+      const user = await UsersCollection.findOne(query);
+      if(!user){
+        throw new Error('User not found');
+      }
+     return res.send({exists: true, user})      
+    })
+
     app.post('/users',async(req,res)=>{
       const user = req.body;
+      const email = user.email;
+      const query = {email: email};
+      const existingUser = await UsersCollection.findOne(query);
+      if(existingUser){
+        return res.send({message: 'User already exists'})
+      }
       console.log(user);
         const result = await UsersCollection.insertOne(user);
         res.send(result)
     })
 
-    app.patch('/users/:id',async(req,res)=>{
+
+    app.patch('/users/:id',verifyUser,async(req,res)=>{
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)};
+      const updatedUser = req.body;
+      const updateDoc = {
+        $set: updatedUser
+      };
+      const result = await UsersCollection.updateOne(filter,updateDoc);
+      res.send(result)
+    })
+
+    app.patch('/users-role/:id',verifyUser,verifyRole('admin'),async(req,res)=>{
       const id = req.params.id;
       const filter = {_id: new ObjectId(id)};
       const updatedUser = req.body;
@@ -152,6 +161,10 @@ async function run() {
 
     app.get('/books',async(req,res)=>{
       const result = await BooksCollection.find().toArray()
+      res.send(result)
+    })
+    app.get('/latest-books',async(req,res)=>{
+      const result = await BooksCollection.find().limit(6).toArray()
       res.send(result)
     })
 
@@ -177,14 +190,14 @@ async function run() {
 //   }
 // });
 
-app.get('/my-books/:email',async(req,res)=>{
+app.get('/my-books/:email',verifyUser,verifyRole('librarian'),async(req,res)=>{
   const email = req.params.email;
   const query = {sellerEmail: email};
   const result = await BooksCollection.find(query).toArray()
   res.send(result)
 })
 
-   app.get('/book/:id', async (req, res) => {
+   app.get('/book/:id',verifyUser, async (req, res) => {
   try {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
@@ -197,7 +210,7 @@ app.get('/my-books/:email',async(req,res)=>{
   }
 })
 
-app.delete('/books/:id',async(req,res)=>{
+app.delete('/books/:id',verifyUser,verifyRole('admin'),async(req,res)=>{
   const id = req.params.id;
   const query = {_id: new ObjectId(id)};
   const result = await BooksCollection.deleteOne(query);
@@ -217,7 +230,7 @@ app.post('/books',async(req,res)=>{
   }
 }
 
-app.get('/orders',async(req,res)=>{
+app.get('/orders',verifyUser,async(req,res)=>{
   const email = req.query.email;
   let query = {};
   if(email){
@@ -226,26 +239,26 @@ app.get('/orders',async(req,res)=>{
   const result = await OrdersCollection.find(query).toArray()
   res.send(result)
 })
-app.get('/all-orders',async(req,res)=>{
+app.get('/all-orders',verifyUser,verifyRole('librarian'),async(req,res)=>{
   const result = await OrdersCollection.find().toArray()
   res.send(result)
 })
 
-app.post('/orders',async(req,res)=>{
+app.post('/orders',verifyUser,async(req,res)=>{
   const order = req.body;
   console.log(order);
   const result = await OrdersCollection.insertOne(order);
   res.send(result)
 })
 
-app.delete('/orders/:id',async(req,res)=>{
+app.delete('/orders/:id',verifyUser,async(req,res)=>{
   const id = req.params.id;
   const query = {_id: new ObjectId(id)};
   const result = await OrdersCollection.deleteOne(query);  
     res.send(result)
 })
 
-app.get('/wishlists',async(req,res)=>{
+app.get('/wishlists',verifyUser,async(req,res)=>{
     const email =  req.query.email;
     let query = {};
     if(email){
@@ -255,7 +268,7 @@ app.get('/wishlists',async(req,res)=>{
     res.send(result)
   })
   
-  app.post('/wishlists',async(req,res)=>{
+  app.post('/wishlists',verifyUser,async(req,res)=>{
     const wishlist = req.body;
     console.log(wishlist);
     const result = await WishlistsCollection.insertOne(wishlist);
@@ -263,7 +276,7 @@ app.get('/wishlists',async(req,res)=>{
   })
 
 
-app.delete('/wishlists/:id',async(req,res)=>{
+app.delete('/wishlists/:id',verifyUser,async(req,res)=>{
   const id = req.params.id;
   const query = {_id: new ObjectId(id)};
   const result = await WishlistsCollection.deleteOne(query);
